@@ -35,13 +35,13 @@ xmlData = response.text
 jsonStr = json.dumps(xmltodict.parse(xmlData), indent = 4)
 jsontext = json.loads(jsonStr)
 
-totalCnt = int(jsontext[firstDict_list[target_num]]['totalCnt'])
-print(totalCnt)
+total_count = int(jsontext[firstDict_list[target_num]]['totalCnt'])
+print(total_count)
 
 #반복횟수 
-loopCnt = math.floor(totalCnt/maxnum)+1
+loopCnt = math.floor(total_count/maxnum)+1
 
-start_page = 7
+start_page = 1
 
 #함수 실행 
 for loop in tqdm(range(start_page, loopCnt+1)):
@@ -54,7 +54,7 @@ for loop in tqdm(range(start_page, loopCnt+1)):
 
     def all_lists ():
         target = targetlist[i] 
-        pages = math.floor(totalCnt / 100) + 1
+        pages = math.floor(total_count / 100) + 1
 
         if loopCnt > 1:
             first_page = (loop - 1)*(maxnum/100) + 1 
@@ -109,31 +109,14 @@ for loop in tqdm(range(start_page, loopCnt+1)):
                 
             serial = Lists[i][k][serialtext]
             Serials[i].append(serial)
-                
-    def all_infos():
 
-        for k in tqdm(range(0, len(Serials[i]))): #len(Serials[i])
-            
-            url = 'https://www.law.go.kr/DRF/lawService.do'
-            params = {'OC': 'dev', 'target': target, 'type': 'XML', 'ID': int(Serials[i][k])}
-            headers = {'Host': 'www.law.go.kr', 'Referer': 'https://bigcase.ai/', 'Content-Type': 'application/json'}
-
-            response = requests.get(url, params=params, headers=headers)
-            xmlData = response.text
-            jsonStr = json.dumps(xmltodict.parse(xmlData), indent = 4)
-            jsontext = json.loads(jsonStr)
-
-            jsontext = jsontext[firstDict_info[i]]  
-
-            Infos[i] = Infos[i] + [jsontext]
-
-    all_lists()        
+    all_lists ()
     all_serials()
-    all_infos()
-    
-    def jsonize():
-        filename = f'{mydata}_info{loop}.json'
-        with open(filename, "w", encoding='utf-8') as json_file:
-            json.dump(Infos[target_num], json_file, ensure_ascii=False, indent=4)
+
+    def collect_serials():
+        filename = f'{mydata}_serial{loop}.txt'
+        with open(filename, "w", encoding='utf-8') as txt_file:
+            for serial in Serials[target_num]:
+                txt_file.write(f"{serial}\n")
             
-    jsonize()
+    collect_serials()

@@ -1,8 +1,11 @@
 import requests
+import pprint
 import json
 import xmltodict
 import math
+import pandas as pd
 from tqdm import tqdm
+from bs4 import BeautifulSoup
 
 ### open.law.go.kr ###
 
@@ -41,7 +44,7 @@ print(totalCnt)
 #반복횟수 
 loopCnt = math.floor(totalCnt/maxnum)+1
 
-start_page = 7
+start_page = 6
 
 #함수 실행 
 for loop in tqdm(range(start_page, loopCnt+1)):
@@ -52,7 +55,7 @@ for loop in tqdm(range(start_page, loopCnt+1)):
 
     i = target_num
 
-    def all_lists ():
+    def allLists ():
         target = targetlist[i] 
         pages = math.floor(totalCnt / 100) + 1
 
@@ -90,7 +93,7 @@ for loop in tqdm(range(start_page, loopCnt+1)):
             
             Lists[i] = Lists[i] + jsontext
 
-    def all_serials():
+    def allSerials():
         target = targetlist[i] 
         for k in range(0, len(Lists[i])):
             
@@ -110,9 +113,9 @@ for loop in tqdm(range(start_page, loopCnt+1)):
             serial = Lists[i][k][serialtext]
             Serials[i].append(serial)
                 
-    def all_infos():
+    def allInfos ():
 
-        for k in tqdm(range(0, len(Serials[i]))): #len(Serials[i])
+        for k in tqdm(range(0, len(Serials[i]))): 
             
             url = 'https://www.law.go.kr/DRF/lawService.do'
             params = {'OC': 'dev', 'target': target, 'type': 'XML', 'ID': int(Serials[i][k])}
@@ -123,17 +126,57 @@ for loop in tqdm(range(start_page, loopCnt+1)):
             jsonStr = json.dumps(xmltodict.parse(xmlData), indent = 4)
             jsontext = json.loads(jsonStr)
 
-            jsontext = jsontext[firstDict_info[i]]  
+            jsontext = jsontext[firstDict_info[i]]
+            
 
-            Infos[i] = Infos[i] + [jsontext]
+            jsontext_final = {
+                'ID': 0,
+                '사건번호': jsontext['사건번호'],
+                '선고일자': jsontext['선고일자'], 
+                '판시사항': jsontext['판시사항'],
+                '판결요지': jsontext['판결요지']
+            }
+        
+            Infos[i] = Infos[i] + [jsontext_final]
 
-    all_lists()        
-    all_serials()
-    all_infos()
+            #만들기
+            """
+            caseid = str(int(Serials[i][k]))
+            casenumber = jsontext['사건번호']
+            
+            date = jsontext['선고일자']
+            casedate = date[0:4] + '. ' + date[4:6] + '. ' + date[6:8] + '.'
+            
+            contents = jsontext['판결요지']
+            
+            if contents != None:
+                answer = '대법원은 ' + '\'' + contents + '\'' + ', 고 판시한 바 있습니다. '
+            else:
+                answer = ''
+                
+            reference = '(대법원 ' + casedate + ' 선고 ' + casenumber + ' 판결.)'
+            
+            jsontext_final = {
+                'ID': caseid,
+                '사건종류명': jsontext['사건종류명'],
+                '사건명': jsontext['사건명'],
+                '참조조문': jsontext['참조조문'],
+                '참조판례': jsontext['참조판례'],
+                '판시사항': jsontext['판시사항'],
+                'Answer': answer + reference
+            }
+            """          
+
+    allLists()        
+    allSerials()
+    allInfos()
     
     def jsonize():
-        filename = f'{mydata}_info{loop}.json'
-        with open(filename, "w", encoding='utf-8') as json_file:
+        path = 'C:/Users/sdsdf/supreme_infos/'
+       # with open(path + mydata + '_list%d.json' %loop, "w", encoding='utf-8') as json_file: 
+        #    json.dump(Lists[target_num], json_file, ensure_ascii=False, indent=4)
+            
+        with open(path + mydata + '_info%d.json' %loop, "w", encoding='utf-8') as json_file:
             json.dump(Infos[target_num], json_file, ensure_ascii=False, indent=4)
             
     jsonize()

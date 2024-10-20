@@ -7,12 +7,13 @@ def enlist_rule_fullname(section_data):
     def parse_section(section, current_parts):
         new_parts = {}
         # 법령 추출
-        law_match = re.match(r'(.*?[법령](?: 시행령)?)', section)
+        law_match = re.match(r'((?:.*?법|.*?령|.*?규칙|.*?법률)(?: 시행령| 시행규칙)?)', section)
+        #law_match = re.match(r'(.*?[법령](?: 시행령)?)', section)
         if law_match:
             new_parts['법령'] = law_match.group(1)
             section = section[law_match.end():].strip()
         # 조 추출
-        article_match = re.search(r'(제\d+조)', section)
+        article_match = re.search(r'(제\d+조의?\d*)', section)
         if article_match:
             new_parts['조'] = article_match.group(1)
             section = section[article_match.end():].strip()

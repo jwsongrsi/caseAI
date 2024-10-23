@@ -74,13 +74,3 @@ def enlist_rule_fullname(section_data):
 
     return result 
 
-
-def split_case_names(data):
-    # Extract the 사건명 field
-    case_name = data.get("사건명", "")
-    
-    case_name_cleaned = re.sub(r'\[.*?\]', '', case_name) # 부연설명 삭제 
-    case_name_list = case_name_cleaned.split("·")
-    case_name_list = [name.strip() for name in case_name_list if name.strip()]
-    
-    return case_name_list

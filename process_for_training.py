@@ -8,14 +8,12 @@ from collections import OrderedDict
 from functions import *
 import pprint
 
-
 def split_info_brackets(data, keys_to_split):
     # Create a dictionary to store the split JSONs by section number
     split_data = {}
-
-    # Iterate over the keys that need to be split (e.g., 판결요지, 판시사항)
+    
+    # We need to process each key in keys_to_split
     for key in keys_to_split:
-        # Check if the value contains numbered sections like [1], [2], [3], etc.
         if key in data and data[key]:
             # Check if the value contains any section markers like [1], [2], etc.
             if re.search(r'\[\d+\]', data[key]):
@@ -31,22 +29,29 @@ def split_info_brackets(data, keys_to_split):
                         current_key = part
                         if current_key not in split_data:
                             split_data[current_key] = copy.deepcopy(data)  # Deep copy the original data
-                            # Remove the keys to be split from the copied data
+                            # Initialize keys_to_split in this section
                             for k in keys_to_split:
                                 split_data[current_key][k] = ""
                     elif current_key:
                         # Ensure current_key is not None before appending content
                         split_data[current_key][key] += part.lstrip()  # Append content to the current section
                     else:
-                        # Handle case where there's no valid section marker
                         print(f"Warning: No valid section marker found before this content: {part}")
+                        선고일자 = data["선고일자"]
+                        #print(f"선고일자: {선고일자}")
             else:
-                # If no section markers are found, retain the original data
-                split_data["original"] = copy.deepcopy(data)
-                break  # No need to further process if there's no marker    
-
+                # If no section markers are found in this key
+                # For each existing section, we can copy the key as is
+                if split_data:
+                    for section in split_data:
+                        split_data[section][key] = data[key]
+                else:
+                    # No sections have been created yet
+                    split_data["original"] = copy.deepcopy(data)
+        else:
+            # Key is not in data or data[key] is empty
+            continue  # Skip to the next key
     return split_data
-
 
 def splitted_info_cleaner (split_data):
     ### 참조조문, 참조판례 Clean ###
@@ -122,37 +127,69 @@ def split_info_slashes(data, keys_to_split):
     
     return split_data
 
-def last_process(data):
-    # Step 1: Combine certain keys to create a new "인용판례"
-    court_name = data.get("법원명", "")
-    sentencing_date = data.get("선고일자", "")
-    # Format the date from "YYYYMMDD" to "YYYY. MM. DD."
-    formatted_date = datetime.strptime(sentencing_date, "%Y%m%d").strftime("%Y. %m. %d.")
-    sentencing_type = data.get("선고", "")
-    case_number = data.get("사건번호", "")
-    ruling_type = data.get("판결유형", "")
-    
-    # Create the "인용판례" string
-    citation = f"{court_name} {formatted_date} {sentencing_type} {case_number} {ruling_type}"
-    
-    # Step 2: Delete unwanted keys (including the ones used for "인용판례")
-    keys_to_delete = ["판례정보일련번호", "법원종류코드", "사건종류코드", "판례내용", "사건번호", "선고일자", "선고", "법원명", "판결유형"] #"사건종류명"
-    for key in keys_to_delete:
-        if key in data:
-            del data[key]
-    
-    # Step 3
-    pansi_sisang = data.get("판시사항", "")
-    conclusions = re.findall(r"\(([^)]*?(적극|소극)[^)]*?)\)", pansi_sisang)
-    pansi_conclusion = [conclusion[0].strip() for conclusion in conclusions]
-    cleaned_pansi_sisang = re.sub(r"\(([^)]*?(적극|소극)[^)]*?)\)", "", pansi_sisang)
-    
-    data["판시결론"] = pansi_conclusion
-    data["판시사항"] = cleaned_pansi_sisang.strip()
 
-    new_data = OrderedDict([("인용판례", citation)])
-    new_data.update(data)  
-    return new_data
+def last_process(data):
+    # Initialize a list to store processed elements
+    final_elements = []
+
+    # Loop over each element in the input list
+    for element in data:
+        # Step 1: Combine certain keys to create a new "인용판례"
+        court_name = element.get("법원명", "")
+        sentencing_date = element.get("선고일자", "")
+        # Format the date from "YYYYMMDD" to "YYYY. MM. DD."
+        formatted_date = datetime.strptime(sentencing_date, "%Y%m%d").strftime("%Y. %m. %d.")
+        sentencing_type = element.get("선고", "")
+        case_number = element.get("사건번호", "")
+        ruling_type = element.get("판결유형", "")
+        
+        # Create the "인용판례" string
+        citation = f"{court_name} {formatted_date} {sentencing_type} {case_number} {ruling_type}"
+        
+        # Step 2: Delete unwanted keys (including the ones used for "인용판례")
+        keys_to_delete = ["판례정보일련번호", "법원종류코드", "사건종류코드", "판례내용", "사건번호", "선고일자", "선고", "법원명", "판결유형"]
+        for key in keys_to_delete:
+            if key in element:
+                del element[key]
+        
+        # Step 3: Extract "적극" or "소극" from "판시사항" and clean it
+        pansi_sisang = element.get("판시사항", "")
+
+        # Proceed only if pansi_sisang is not None or an empty string
+        if pansi_sisang:
+            # Find all occurrences of variations of "적극" or "소극"
+            conclusions = re.findall(r"\(([^)]*?(적극|소극)[^)]*?)\)", pansi_sisang)
+            pansi_conclusion = [re.sub(r".*소극.*", "소극", re.sub(r".*적극.*", "적극", conclusion[0].strip())) for conclusion in conclusions]
+            
+            # Completely remove all variations of "적극" or "소극" from the original string
+            cleaned_pansi_sisang = re.sub(r"\(([^)]*?(적극|소극)[^)]*?)\)", "", pansi_sisang)
+        else:
+            # If no 판시사항, set empty values for 판시결론 and cleaned 판시사항
+            pansi_conclusion = []
+            cleaned_pansi_sisang = ""
+
+        # Update element with new fields
+        element["판시결론"] = pansi_conclusion
+        element["판시사항"] = cleaned_pansi_sisang.strip()
+
+        # Step 4: Rebuild the dictionary with id at the beginning, and 판시결론 after 판시사항
+        new_element = OrderedDict()
+
+        new_element["id"] = None  # The id will be assigned later in final_result_with_ids
+        new_element["인용판례"] = citation
+
+        # Loop over the element's items to insert "판시결론" after "판시사항"
+        for key, value in element.items():
+            new_element[key] = value
+            if key == "판시사항":
+                # Insert "판시결론" immediately after "판시사항"
+                new_element["판시결론"] = pansi_conclusion
+
+        # Add processed element to the list
+        final_elements.append(new_element)
+
+    # Return the list of processed elements
+    return final_elements
 
 def final_result_with_ids(json_data, starting_id=1):
     # Initialize an empty list to hold processed elements
@@ -162,21 +199,30 @@ def final_result_with_ids(json_data, starting_id=1):
     current_id = starting_id
     for element in json_data:
 
-        pprint.pprint(element)
-
+        # Step 1: Split and clean the element using your existing functions
         bracket_splitted = split_info_brackets(element, ["판시사항", "판결요지", "참조조문", "참조판례"])
         cleaned_splitted = splitted_info_cleaner(bracket_splitted)
         slash_splitted = split_info_slashes(cleaned_splitted, ["판시사항"])
 
-        final_element = last_process(slash_splitted)
+        # Step 2: Process the cleaned data using last_process (which may return a list)
+        final_elements = last_process(slash_splitted)
 
-        final_element['id'] = current_id
-        current_id += 1
-
-        processed_data.append(final_element)
+        # Step 3: Check if final_elements is a list or a single element
+        if isinstance(final_elements, list):
+            # If it's a list, assign an id to each element in the list
+            for final_element in final_elements:
+                final_element['id'] = current_id
+                current_id += 1
+                processed_data.append(final_element)
+        else:
+            # If it's a single element, just assign an id and append it
+            final_elements['id'] = current_id
+            current_id += 1
+            processed_data.append(final_elements)
 
     # Return the processed data and the last used id (to continue if needed)
     return processed_data, current_id
+
 
 def process_all_supreme_files(input_folder, output_folder):
     # Ensure the output folder exists

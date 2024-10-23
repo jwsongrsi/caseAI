@@ -36,67 +36,54 @@ def replace_pronouns_rules(text, default_provisions):
 
     return output_text
 
-### 죄명 구체화 ###
+### 죄명 구체화 ### / 작동 안 함 고쳐야 됨
 def replace_pronouns_crimes(text, default_crimes):
-    # Initialize default_crime with the first crime in default_crimes
-    default_crime = default_crimes[0]
-    
-    # Patterns to identify crimes and pronouns
-    crime_pattern = re.compile(r'\b([가-힣\s]+죄)')
-    pronoun_pattern = re.compile(r'\b(위 죄|이 죄)')
+    # Step 1. 죄명 추출 
+    crimes = []
+    for crime in default_crimes:
+        processed_crimes = []
+        for part in crimes:
+            if '위반' in part:
+                part = part.split('위반')[0]
+            processed_crimes.append(part)
+        crimes.extend(processed_crimes)
 
-    # Find all crime and pronoun matches in the text
-    matches = []
-    for match in crime_pattern.finditer(text):
-        crime_text = match.group()
-        # Skip pronouns when capturing crimes
-        if crime_text.strip() in ['위 죄', '이 죄']:
-            continue
-        matches.append({
-            'type': 'crime',
-            'text': crime_text,
-            'start': match.start(),
-            'end': match.end(),
-            'normalized_text': re.sub(r'\s', '', crime_text)
-        })
-    for match in pronoun_pattern.finditer(text):
-        matches.append({
-            'type': 'pronoun',
-            'text': match.group(),
-            'start': match.start(),
-            'end': match.end()
-        })
+    # Step 2. matching을 위한 띄어쓰기 삭제 ("위 죄"만 남겨두기)
+    text_with_placeholder = text.replace(" 위 죄", "##PLACEHOLDER##")
+    no_space_text = text_with_placeholder.replace(" ", "")
+    no_space_text = no_space_text.replace("##PLACEHOLDER##", " 위 죄")
+
+    # Step 3. matching
+    match = re.search(r"위 죄[^\s]*", no_space_text)
     
-    # Sort matches based on their position in the text
-    matches.sort(key=lambda x: x['start'])
+    if not match:
+        # If "위 죄" with variations is not found, return the original text
+        return text
     
-    # Process the text and replace crimes and pronouns
-    output_text = ''
-    last_pos = 0
-    for match in matches:
-        # Append text before the current match
-        output_text += text[last_pos:match['start']]
-        
-        if match['type'] == 'crime':
-            crime_name_no_space = match['normalized_text']
-            matched = False
-            # Attempt to match the crime with one from default_crimes
-            for default_crime_candidate in default_crimes:
-                default_crime_candidate_no_space = re.sub(r'\s', '', default_crime_candidate)
-                if (default_crime_candidate_no_space in crime_name_no_space or
-                    crime_name_no_space in default_crime_candidate_no_space):
-                    # Update default_crime and replace in text
-                    default_crime = default_crime_candidate
-                    output_text += default_crime
-                    matched = True
-                    break
-            if not matched:
-                output_text += match['text']
-        elif match['type'] == 'pronoun':
-            # Replace pronoun with the default_crime
-            output_text += default_crime + '죄'
-        last_pos = match['end']
+    index_of_위죄 = match.start()  # Get the starting position of the match
     
-    # Append any remaining text after the last match
-    output_text += text[last_pos:]
-    return output_text
+    # Step 2: Identify the closest matching crime before "위 죄"
+    specified_crime = None
+    for crime in crimes:
+        crime_pos = no_space_text.rfind(crime, 0, index_of_위죄)  # Search for crime before "위 죄"
+        if crime_pos != -1:
+            specified_crime = crime
+            break  # Stop as soon as we find the closest match
+    
+    if specified_crime is None:
+        # If no matching crime is found, return the original text
+        return text
+    
+    # Step 3: Find the corresponding default_crime from default_crimes
+    for i, crime in enumerate(crimes):
+        if crime == specified_crime:
+            default_version = default_crimes[i]
+            break
+    
+    # Step 4: Replace the "위 " part in the original text, preserving the "죄" part naturally
+    replaced_text = text.replace("위 죄", default_version)
+
+
+    print(replaced_text)
+    
+    return replaced_text

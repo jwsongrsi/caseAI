@@ -56,7 +56,7 @@ lora_config = LoraConfig(
 model = get_peft_model(model, lora_config)
 
 # Load multiple JSON files from the folder
-data_folder = "dbs/training/supreme_pansi_quiz/short_answer_splitted"
+data_folder = "dbs/training/supreme_pansi_quiz"
 all_data = []
 
 # Iterate over each file in the folder

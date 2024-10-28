@@ -13,7 +13,8 @@ import os
 from peft import LoraConfig, get_peft_model
 
 model_id = "meta-llama/Meta-Llama-3-8B"
-local_model_path = "./llama-3-8B"
+#local_model_path = "./llama-3-8B"
+local_model_path = "./llama-3-8B/models--meta-llama--Meta-Llama-3-8B/snapshots/8cde5ca8380496c9a6cc7ef3a8b46a0372a1d920"
 
 # Step 1: Download model weights locally if they do not already exist
 if not os.path.exists(local_model_path):
@@ -27,8 +28,6 @@ if not os.path.exists(local_model_path):
 else:
     tokenizer = AutoTokenizer.from_pretrained(local_model_path, trust_remote_code=True, use_fast=False)
     print("Model weights already exist locally.")
-
-local_model_path = "./llama-3-8B/models--meta-llama--Meta-Llama-3-8B/snapshots/8cde5ca8380496c9a6cc7ef3a8b46a0372a1d920"
 
 # Load the model with device_map="auto" and optional load_in_8bit=True
 model = AutoModelForCausalLM.from_pretrained(
@@ -76,6 +75,8 @@ for filename in os.listdir(data_folder):
 
 # Create a dataset from the collected data
 dataset = Dataset.from_dict(all_data)
+
+print(dataset[:5])
 
 # Preprocessing function to tokenize input and output
 def preprocess_data(examples):
@@ -125,8 +126,6 @@ training_args = TrainingArguments(
     per_device_eval_batch_size=1,
     num_train_epochs=3,
     weight_decay=0.01,
-    # Add the following line to prevent the Trainer from moving the model to the device
-    place_model_on_device=False,
 )
 
 # Initialize the Trainer

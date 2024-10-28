@@ -6,22 +6,22 @@ from tqdm import tqdm
 
 ### open.law.go.kr ###
 
-        #행정규칙   유권해석      정보      공정       금융      방통    토지     권익      고용      환경       산재     자치법규
-label = ['rule', 'interpret', 'private', 'trade', 'finance', 'cast', 'land', 'right', 'employ', 'nature', 'industy', 'ordin', 'supreme']
+        #행정규칙   유권해석      정보      공정       금융      방통    토지     권익      고용      환경       산재     자치법규   대법판례    현행법령
+label = ['rule', 'interpret', 'private', 'trade', 'finance', 'cast', 'land', 'right', 'employ', 'nature', 'industy', 'ordin', 'supreme', 'statutes']
 
 ###################### 입력창 #####################
-mydata = 'supreme' #가져오려는 api 데이터 (label 참조)
+mydata = 'statutes' #가져오려는 api 데이터 (label 참조)
 maxnum = 10000 #한 파일당 최대 개수 (100의 배수)
 
 court = '대법원'
 ###################################################
 
 target_num = label.index(mydata)
-targetlist = ['admrul', 'expc', 'ppc', 'ftc', 'fsc', 'kcc', 'oclt', 'acr', 'eiac', 'ecc', 'iaciac', 'ordin', 'prec']
+targetlist = ['admrul', 'expc', 'ppc', 'ftc', 'fsc', 'kcc', 'oclt', 'acr', 'eiac', 'ecc', 'iaciac', 'ordin', 'prec', 'law']
 #totalCnts =  [ 19847,   7702,  1548,  7245,   552,   811,    23,    448,   118,    266,    934,     141659] #2023.12.13 기준 
 
-firstDict_list = ['AdmRulSearch', 'Expc', 'Ppc', 'Ftc', 'Fsc', 'Kcc', 'Oclt', 'Acr', 'Eiac', 'Ecc', 'Iaciac', 'OrdinSearch', 'PrecSearch']
-firstDict_info = ['AdmRulService'] + [item + 'Service' for item in firstDict_list[1:11]] + ['LawService', 'PrecService']
+firstDict_list = ['AdmRulSearch', 'Expc', 'Ppc', 'Ftc', 'Fsc', 'Kcc', 'Oclt', 'Acr', 'Eiac', 'Ecc', 'Iaciac', 'OrdinSearch', 'PrecSearch', 'LawSearch']
+firstDict_info = ['AdmRulService'] + [item + 'Service' for item in firstDict_list[1:11]] + ['LawService', 'PrecService', '']
 
 #데이터 총 개수
 target = targetlist[target_num] 
@@ -34,6 +34,8 @@ response = requests.get(url, params=params, headers=headers)
 xmlData = response.text
 jsonStr = json.dumps(xmltodict.parse(xmlData), indent = 4)
 jsontext = json.loads(jsonStr)
+
+print(jsontext)
 
 total_count = int(jsontext[firstDict_list[target_num]]['totalCnt'])
 print(total_count)

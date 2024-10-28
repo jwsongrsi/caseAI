@@ -1,5 +1,3 @@
-### colab 실행용 / 작동 안 됨 ###
-
 import torch
 from transformers import (
     AutoModelForCausalLM,
@@ -14,33 +12,47 @@ import json
 import os
 from peft import LoraConfig, get_peft_model
 
-# Load tokenizer and model
 model_id = "meta-llama/Meta-Llama-3-8B"
-tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+local_model_path = "./llama-3-8B"
 
-if tokenizer.pad_token is None:
-    tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+# Step 1: Download model weights locally if they do not already exist
+if not os.path.exists(local_model_path):
+    model = AutoModelForCausalLM.from_pretrained(
+        model_id, cache_dir=local_model_path, trust_remote_code=True
+    )
+    model.save_pretrained(local_model_path)  # Save the model to a local path
+    tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=local_model_path, trust_remote_code=True)
+    tokenizer.save_pretrained(local_model_path)  # Save the tokenizer to the same path
+    print(f"Model and tokenizer saved to {local_model_path}")
+else:
+    tokenizer = AutoTokenizer.from_pretrained(local_model_path, trust_remote_code=True, use_fast=False)
+    print("Model weights already exist locally.")
 
-# Load the model without LoRa to wrap it afterward
+local_model_path = "./llama-3-8B/models--meta-llama--Meta-Llama-3-8B/snapshots/8cde5ca8380496c9a6cc7ef3a8b46a0372a1d920"
+
+# Load the model with device_map="auto" and optional load_in_8bit=True
 model = AutoModelForCausalLM.from_pretrained(
-    model_id,
+    local_model_path,
     device_map="auto",
-    offload_folder="offload",
-    offload_state_dict=True,
+    torch_dtype=torch.float16,
     trust_remote_code=True,
+    load_in_8bit=True,
 )
+
+tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 model.resize_token_embeddings(len(tokenizer))
 
-# Define LoRa configuration
+# Define LoRA configuration
 lora_config = LoraConfig(
     r=16,                         # LoRa rank; adjust as needed
     lora_alpha=32,                # Scaling factor
     target_modules=["q_proj", "v_proj"],  # Specify attention layers
     lora_dropout=0.1,             # Dropout for LoRa layers
-    bias="none"
+    bias="none",
+    task_type="CAUSAL_LM"         # Add this line
 )
 
-# Wrap the model with LoRa
+# Wrap the model with LoRA
 model = get_peft_model(model, lora_config)
 
 # Load multiple JSON files from the folder
@@ -113,6 +125,8 @@ training_args = TrainingArguments(
     per_device_eval_batch_size=1,
     num_train_epochs=3,
     weight_decay=0.01,
+    # Add the following line to prevent the Trainer from moving the model to the device
+    place_model_on_device=False,
 )
 
 # Initialize the Trainer

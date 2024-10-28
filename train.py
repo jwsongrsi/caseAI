@@ -5,10 +5,9 @@ from datasets import Dataset, DatasetDict
 import json
 import os
 
-# Load model and tokenizer
-model_name = "llama-7b"  # replace with the correct LLaMA model path
-tokenizer = LlamaTokenizer.from_pretrained(model_name)
-model = LlamaForCausalLM.from_pretrained(model_name)
+# Load tokenizer and model
+tokenizer = LlamaTokenizer.from_pretrained("huggingface/llama-2-7b")
+model = LlamaForCausalLM.from_pretrained("huggingface/llama-2-7b").to("cuda")
 
 # Load multiple JSON files from the folder
 data_folder = "dbs/training/supreme_pansi_quiz/short_answer_splitted"

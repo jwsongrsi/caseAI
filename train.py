@@ -1,3 +1,5 @@
+### colab 실행용 / 작동 안 됨 ###
+
 import torch
 from transformers import (
     AutoModelForCausalLM,
@@ -10,6 +12,7 @@ from sklearn.metrics import accuracy_score, f1_score
 from datasets import Dataset, DatasetDict
 import json
 import os
+from peft import LoraConfig, get_peft_model
 
 # Load tokenizer and model
 model_id = "meta-llama/Meta-Llama-3-8B"
@@ -18,15 +21,27 @@ tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 if tokenizer.pad_token is None:
     tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
-# Load the model with Accelerate offloading
+# Load the model without LoRa to wrap it afterward
 model = AutoModelForCausalLM.from_pretrained(
     model_id,
     device_map="auto",
-    offload_folder="offload",      # Add this line
-    offload_state_dict=True,       # Add this line
+    offload_folder="offload",
+    offload_state_dict=True,
     trust_remote_code=True,
-).eval()
+)
 model.resize_token_embeddings(len(tokenizer))
+
+# Define LoRa configuration
+lora_config = LoraConfig(
+    r=16,                         # LoRa rank; adjust as needed
+    lora_alpha=32,                # Scaling factor
+    target_modules=["q_proj", "v_proj"],  # Specify attention layers
+    lora_dropout=0.1,             # Dropout for LoRa layers
+    bias="none"
+)
+
+# Wrap the model with LoRa
+model = get_peft_model(model, lora_config)
 
 # Load multiple JSON files from the folder
 data_folder = "dbs/training/supreme_pansi_quiz/short_answer_splitted"
@@ -75,7 +90,7 @@ data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
 # Evaluation function
 def compute_metrics(pred):
-    predictions = torch.argmax(pred.predictions[0], dim=-1)  # Update this line
+    predictions = torch.argmax(pred.predictions[0], dim=-1)
     labels = pred.label_ids
     # Flatten predictions and labels
     predictions = predictions.view(-1)
@@ -93,7 +108,7 @@ def compute_metrics(pred):
 # Define TrainingArguments for fine-tuning and evaluation
 training_args = TrainingArguments(
     output_dir="./results",
-    eval_strategy="epoch",                # Use eval_strategy
+    eval_strategy="epoch",
     per_device_train_batch_size=1,
     per_device_eval_batch_size=1,
     num_train_epochs=3,
@@ -119,12 +134,12 @@ print(
 )
 
 # 2. Fine-tuning the model
-print("Fine-tuning the model...")
+print("Fine-tuning the model with LoRa...")
 trainer.train()
 
 # 3. Evaluation after fine-tuning
-print("Evaluating after fine-tuning...")
+print("Evaluating after LoRa fine-tuning...")
 eval_results_ft = trainer.evaluate()
 print(
-    f"Fine-tuned Accuracy: {eval_results_ft['eval_accuracy']}, Fine-tuned F1 Score: {eval_results_ft['eval_f1']}"
+    f"LoRa Fine-tuned Accuracy: {eval_results_ft['eval_accuracy']}, LoRa Fine-tuned F1 Score: {eval_results_ft['eval_f1']}"
 )

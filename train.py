@@ -1,3 +1,4 @@
+import os
 import torch
 from transformers import (
     AutoModelForCausalLM,
@@ -9,11 +10,12 @@ from transformers import (
 from sklearn.metrics import accuracy_score, f1_score
 from datasets import Dataset, DatasetDict
 import json
-import os
 from peft import LoraConfig, get_peft_model
 
+# Optional: Enable mixed precision and gradient checkpointing
+torch.backends.cudnn.benchmark = True
+
 model_id = "meta-llama/Meta-Llama-3-8B"
-#local_model_path = "./llama-3-8B"
 local_model_path = "./llama-3-8B/models--meta-llama--Meta-Llama-3-8B/snapshots/8cde5ca8380496c9a6cc7ef3a8b46a0372a1d920"
 
 # Step 1: Download model weights locally if they do not already exist
@@ -29,13 +31,12 @@ else:
     tokenizer = AutoTokenizer.from_pretrained(local_model_path, trust_remote_code=True, use_fast=False)
     print("Model weights already exist locally.")
 
-# Load the model with device_map="auto" and optional load_in_8bit=True
+# Load the model with device_map="auto" and load_in_8bit=True for memory optimization
 model = AutoModelForCausalLM.from_pretrained(
     local_model_path,
     device_map="auto",
-    torch_dtype=torch.float16,
+    load_in_8bit=True,  # Use 8-bit loading
     trust_remote_code=True,
-    load_in_8bit=True,
 )
 
 tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -56,7 +57,7 @@ model = get_peft_model(model, lora_config)
 
 # Load multiple JSON files from the folder
 data_folder = "dbs/training/supreme_pansi_quiz/short_answer_splitted"
-all_data = {"id": [], "판시사항": [], "판시결론_객관식": []}
+all_data = []
 
 # Iterate over each file in the folder
 for filename in os.listdir(data_folder):
@@ -67,24 +68,24 @@ for filename in os.listdir(data_folder):
             for element in data:
                 # Check if "판시결론_객관식" exists and has exactly one element
                 if "판시결론_객관식" in element and len(element["판시결론_객관식"]) == 1:
-                    all_data["id"].append(element["id"])
-                    all_data["판시사항"].append(element["판시사항"])
-                    # Extract the single element and append it as a string
-                    single_value = element["판시결론_객관식"][0]
-                    all_data["판시결론_객관식"].append(str(single_value))
+                    # Create a new JSON object for each entry
+                    single_data = {
+                        "id": element["id"],
+                        "판시사항": element["판시사항"],
+                        "판시결론_객관식": str(element["판시결론_객관식"][0])
+                    }
+                    all_data.append(single_data)
 
 # Create a dataset from the collected data
-dataset = Dataset.from_dict(all_data)
-
-print(dataset[:5])
+dataset = Dataset.from_list(all_data)
 
 # Preprocessing function to tokenize input and output
 def preprocess_data(examples):
     inputs = tokenizer(
-        examples["판시사항"], truncation=True, padding="max_length", max_length=512
+        examples["판시사항"], truncation=True, padding="max_length", max_length=256  # Reduced from 512
     )
     labels = tokenizer(
-        examples["판시결론_객관식"], truncation=True, padding="max_length", max_length=128
+        examples["판시결론_객관식"], truncation=True, padding="max_length", max_length=64  # Reduced from 128
     )
     inputs["labels"] = labels["input_ids"]
     return inputs
@@ -103,7 +104,7 @@ data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
 # Evaluation function
 def compute_metrics(pred):
-    predictions = torch.argmax(pred.predictions[0], dim=-1)
+    predictions = torch.argmax(pred.predictions, dim=-1)  # Removed [0] indexing
     labels = pred.label_ids
     # Flatten predictions and labels
     predictions = predictions.view(-1)
@@ -126,6 +127,9 @@ training_args = TrainingArguments(
     per_device_eval_batch_size=1,
     num_train_epochs=3,
     weight_decay=0.01,
+    fp16=True,                        # Enable mixed precision
+    gradient_checkpointing=True,      # Reduce memory usage
+    dataloader_num_workers=2,         # Adjust based on your environment
 )
 
 # Initialize the Trainer
@@ -138,6 +142,9 @@ trainer = Trainer(
     data_collator=data_collator,
     compute_metrics=compute_metrics,
 )
+
+# Clear GPU cache before evaluation
+torch.cuda.empty_cache()
 
 # 1. Evaluation without fine-tuning
 print("Evaluating without fine-tuning...")

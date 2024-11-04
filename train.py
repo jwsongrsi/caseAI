@@ -146,18 +146,11 @@ trainer = Trainer(
 # Clear GPU cache before evaluation
 torch.cuda.empty_cache()
 
-# 1. Evaluation without fine-tuning
-print("Evaluating without fine-tuning...")
-eval_results = trainer.evaluate()
-print(
-    f"Accuracy: {eval_results['eval_accuracy']}, F1 Score: {eval_results['eval_f1']}"
-)
-
-# 2. Fine-tuning the model
+# 1. Fine-tuning the model
 print("Fine-tuning the model with LoRa...")
 trainer.train()
 
-# 3. Evaluation after fine-tuning
+# 2. Evaluation after fine-tuning
 print("Evaluating after LoRa fine-tuning...")
 eval_results_ft = trainer.evaluate()
 print(
